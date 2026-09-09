@@ -15,11 +15,15 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.NotificationManagerCompat
 
+import android.widget.ScrollView
+import android.widget.Toast
+
 class MainActivity : AppCompatActivity() {
 
     private lateinit var statusText: TextView
     private lateinit var requestPermissionButton: Button
     private lateinit var requestNotifAccessButton: Button
+    private lateinit var requestAccessibilityButton: Button
     private lateinit var attachButton: Button
     private lateinit var detachButton: Button
 
@@ -28,19 +32,29 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cardButton: Button
     private lateinit var testNotifButton: Button
     private lateinit var postHeadsUpButton: Button
+    private lateinit var testLockScreenButton: Button
+    private lateinit var testScreenshotButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val rootLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(48, 48, 48, 48)
+        val scrollView = ScrollView(this).apply {
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
         }
+
+        val rootLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(48, 48, 48, 48)
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+        scrollView.addView(rootLayout)
 
         statusText = TextView(this).apply {
             textSize = 16f
@@ -67,6 +81,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
         rootLayout.addView(requestNotifAccessButton)
+
+        requestAccessibilityButton = Button(this).apply {
+            text = "Grant Accessibility Service"
+            setOnClickListener {
+                NanoAccessibilityService.openAccessibilitySettings(this@MainActivity)
+            }
+        }
+        rootLayout.addView(requestAccessibilityButton)
 
 
         attachButton = Button(this).apply {
@@ -215,7 +237,54 @@ class MainActivity : AppCompatActivity() {
         }
         rootLayout.addView(rapidBurstButton)
 
-        setContentView(rootLayout)
+        val a11yHeader = TextView(this).apply {
+            text = "\nAccessibility Actions (Phase 5):"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setPadding(0, 24, 0, 12)
+        }
+        rootLayout.addView(a11yHeader)
+
+        testLockScreenButton = Button(this).apply {
+            text = "Test Lock Screen (Phase 5)"
+            setOnClickListener {
+                val success = NanoAccessibilityService.lockScreen()
+                Toast.makeText(
+                    this@MainActivity,
+                    if (success) "Locking screen..." else "Failed to lock: service not connected",
+                    Toast.LENGTH_SHORT
+                ).show()
+                updateUi()
+            }
+        }
+        rootLayout.addView(testLockScreenButton)
+
+        testScreenshotButton = Button(this).apply {
+            text = "Test Screenshot (Phase 5)"
+            setOnClickListener {
+                Toast.makeText(this@MainActivity, "Taking screenshot...", Toast.LENGTH_SHORT).show()
+                val started = NanoAccessibilityService.takeScreenshot(
+                    onSuccess = { bitmap, buffer ->
+                        val info = if (bitmap != null) {
+                            "Success: ${bitmap.width}x${bitmap.height} hardware bitmap"
+                        } else {
+                            "Success: global action triggered"
+                        }
+                        Toast.makeText(this@MainActivity, info, Toast.LENGTH_LONG).show()
+                        buffer?.close()
+                    },
+                    onFailure = { code ->
+                        Toast.makeText(this@MainActivity, "Screenshot failed (code $code)", Toast.LENGTH_SHORT).show()
+                    }
+                )
+                if (!started) {
+                    Toast.makeText(this@MainActivity, "Service not connected", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        rootLayout.addView(testScreenshotButton)
+
+        setContentView(scrollView)
     }
 
     override fun onResume() {
@@ -231,6 +300,8 @@ class MainActivity : AppCompatActivity() {
     private fun updateUi() {
         val hasPermission = Settings.canDrawOverlays(this)
         val hasNotifAccess = NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
+        val isA11yConnected = NanoAccessibilityService.isConnected
+        val isA11yEnabled = NanoAccessibilityService.isServiceEnabled(this)
         val isAttached = IslandWindowManager.isAttached
         val currentShape = IslandWindowManager.currentShape
 
@@ -241,13 +312,21 @@ class MainActivity : AppCompatActivity() {
             else -> "${currentShape.widthDp}x${currentShape.heightDp}dp"
         }
 
+        val a11yStatus = when {
+            isA11yConnected -> "CONNECTED"
+            isA11yEnabled -> "ENABLED (CONNECTING)"
+            else -> "DENIED"
+        }
+
         statusText.text = "Overlay Permission: ${if (hasPermission) "GRANTED" else "DENIED"}\n" +
             "Notification Access: ${if (hasNotifAccess) "GRANTED" else "DENIED"}\n" +
+            "Accessibility Service: $a11yStatus\n" +
             "Overlay Attached: ${if (isAttached) "YES" else "NO"}\n" +
             "Current Shape: $shapeName"
 
         requestPermissionButton.isEnabled = !hasPermission
         requestNotifAccessButton.isEnabled = !hasNotifAccess
+        requestAccessibilityButton.isEnabled = !isA11yConnected
         attachButton.isEnabled = hasPermission && !isAttached
         detachButton.isEnabled = isAttached
 
@@ -256,5 +335,7 @@ class MainActivity : AppCompatActivity() {
         cardButton.isEnabled = isAttached
         postHeadsUpButton.isEnabled = isAttached
         testNotifButton.isEnabled = isAttached
+        testLockScreenButton.isEnabled = isA11yConnected
+        testScreenshotButton.isEnabled = isA11yConnected
     }
 }
