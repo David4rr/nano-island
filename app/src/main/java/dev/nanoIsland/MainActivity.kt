@@ -83,7 +83,9 @@ class MainActivity : AppCompatActivity() {
         punchHoleButton = Button(this).apply {
             text = "Punch Hole (34x34)"
             setOnClickListener {
-                IslandWindowManager.morphTo(IslandShape.PUNCH_HOLE)
+                IslandWindowManager.animateTo(IslandShape.PUNCH_HOLE) {
+                    updateUi()
+                }
                 updateUi()
             }
         }
@@ -92,7 +94,9 @@ class MainActivity : AppCompatActivity() {
         pillButton = Button(this).apply {
             text = "Pill (126x36)"
             setOnClickListener {
-                IslandWindowManager.morphTo(IslandShape.PILL)
+                IslandWindowManager.animateTo(IslandShape.PILL) {
+                    updateUi()
+                }
                 updateUi()
             }
         }
@@ -101,7 +105,9 @@ class MainActivity : AppCompatActivity() {
         cardButton = Button(this).apply {
             text = "Card (360x170)"
             setOnClickListener {
-                IslandWindowManager.morphTo(IslandShape.CARD)
+                IslandWindowManager.animateTo(IslandShape.CARD) {
+                    updateUi()
+                }
                 updateUi()
             }
         }

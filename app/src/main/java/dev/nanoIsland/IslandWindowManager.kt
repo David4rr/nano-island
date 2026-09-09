@@ -12,6 +12,7 @@ object IslandWindowManager {
 
     private var islandView: IslandView? = null
     private var windowManager: WindowManager? = null
+    private var animationController: SpringAnimationController? = null
     val isAttached: Boolean
         get() = islandView != null
 
@@ -70,19 +71,59 @@ object IslandWindowManager {
             }
         }
         val view = IslandView(appContext)
+        val controller = SpringAnimationController(view)
         try {
             wm.addView(view, params)
             islandView = view
+            animationController = controller
             return true
         } catch (e: Exception) {
-            android.util.Log.e("NanoIsland", "Failed to addView to WindowManager", e)
             return false
         }
+    }
+
+    fun animateTo(shape: IslandShape, onEnd: (() -> Unit)? = null) {
+        val view = islandView ?: return
+        val wm = windowManager ?: return
+        val controller = animationController ?: return
+
+        val startWidth = view.currentWidthPx.toInt()
+        val targetWidth = view.dpToPx(shape.widthDp).toInt()
+        val startHeight = view.currentHeightPx.toInt()
+        val targetHeight = view.dpToPx(shape.heightDp).toInt()
+
+        val maxW = maxOf(startWidth, targetWidth)
+        val maxH = maxOf(startHeight, targetHeight)
+
+        val params = view.layoutParams as? WindowManager.LayoutParams
+        if (params != null && (params.width < maxW || params.height < maxH)) {
+            params.width = maxW
+            params.height = maxH
+            try {
+                wm.updateViewLayout(view, params)
+            } catch (_: Exception) {}
+        }
+
+        controller.animateTo(
+            targetShape = shape,
+            onEnd = {
+                val endParams = view.layoutParams as? WindowManager.LayoutParams
+                if (endParams != null) {
+                    endParams.width = targetWidth
+                    endParams.height = targetHeight
+                    try {
+                        wm.updateViewLayout(view, endParams)
+                    } catch (_: Exception) {}
+                }
+                onEnd?.invoke()
+            }
+        )
     }
 
     fun morphTo(shape: IslandShape) {
         val view = islandView ?: return
         val wm = windowManager ?: return
+        animationController?.cancel()
 
         view.morphTo(shape)
 
@@ -97,6 +138,8 @@ object IslandWindowManager {
 
     fun detach() {
         val view = islandView ?: return
+        animationController?.cancel()
+        animationController = null
         val wm = windowManager
         if (view.isAttachedToWindow && wm != null) {
             try {

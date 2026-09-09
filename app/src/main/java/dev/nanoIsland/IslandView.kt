@@ -23,19 +23,25 @@ class IslandView @JvmOverloads constructor(
     private val rect = RectF()
 
     var currentShape: IslandShape = IslandShape.PUNCH_HOLE
-        private set
+
+    var targetShape: IslandShape = IslandShape.PUNCH_HOLE
 
     var currentWidthPx: Float = dpToPx(IslandShape.PUNCH_HOLE.widthDp)
-        private set
 
     var currentHeightPx: Float = dpToPx(IslandShape.PUNCH_HOLE.heightDp)
-        private set
 
     var currentCornerRadiusPx: Float = dpToPx(IslandShape.PUNCH_HOLE.cornerRadiusDp)
-        private set
+
+    val contentAlpha: Float
+        get() {
+            val targetW = dpToPx(targetShape.widthDp)
+            if (targetW <= 0f) return 0f
+            return ((currentWidthPx / targetW - 0.7f) / 0.3f).coerceIn(0f, 1f)
+        }
 
     fun morphTo(shape: IslandShape) {
         currentShape = shape
+        targetShape = shape
         currentWidthPx = dpToPx(shape.widthDp)
         currentHeightPx = dpToPx(shape.heightDp)
         currentCornerRadiusPx = dpToPx(shape.cornerRadiusDp)
@@ -45,12 +51,12 @@ class IslandView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val left = (width - currentWidthPx) / 2f
-        val top = (height - currentHeightPx) / 2f
+        val top = 0f
         rect.set(left, top, left + currentWidthPx, top + currentHeightPx)
         canvas.drawRoundRect(rect, currentCornerRadiusPx, currentCornerRadiusPx, islandPaint)
     }
 
-    private fun dpToPx(dp: Float): Float {
+    internal fun dpToPx(dp: Float): Float {
         return TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
             dp,
