@@ -18,6 +18,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var attachButton: Button
     private lateinit var detachButton: Button
 
+    private lateinit var punchHoleButton: Button
+    private lateinit var pillButton: Button
+    private lateinit var cardButton: Button
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -51,7 +55,7 @@ class MainActivity : AppCompatActivity() {
         rootLayout.addView(requestPermissionButton)
 
         attachButton = Button(this).apply {
-            text = "Attach Overlay (10x10dp)"
+            text = "Attach Overlay"
             setOnClickListener {
                 IslandWindowManager.attach(this@MainActivity)
                 updateUi()
@@ -67,6 +71,41 @@ class MainActivity : AppCompatActivity() {
             }
         }
         rootLayout.addView(detachButton)
+
+        val shapesHeader = TextView(this).apply {
+            text = "\nDebug Shapes:"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setPadding(0, 24, 0, 12)
+        }
+        rootLayout.addView(shapesHeader)
+
+        punchHoleButton = Button(this).apply {
+            text = "Punch Hole (10x10)"
+            setOnClickListener {
+                IslandWindowManager.morphTo(IslandShape.PUNCH_HOLE)
+                updateUi()
+            }
+        }
+        rootLayout.addView(punchHoleButton)
+
+        pillButton = Button(this).apply {
+            text = "Pill (120x35)"
+            setOnClickListener {
+                IslandWindowManager.morphTo(IslandShape.PILL)
+                updateUi()
+            }
+        }
+        rootLayout.addView(pillButton)
+
+        cardButton = Button(this).apply {
+            text = "Card (360x180)"
+            setOnClickListener {
+                IslandWindowManager.morphTo(IslandShape.CARD)
+                updateUi()
+            }
+        }
+        rootLayout.addView(cardButton)
 
         setContentView(rootLayout)
     }
@@ -84,12 +123,25 @@ class MainActivity : AppCompatActivity() {
     private fun updateUi() {
         val hasPermission = Settings.canDrawOverlays(this)
         val isAttached = IslandWindowManager.isAttached
+        val currentShape = IslandWindowManager.currentShape
+
+        val shapeName = when (currentShape) {
+            IslandShape.PUNCH_HOLE -> "PUNCH_HOLE (10x10dp)"
+            IslandShape.PILL -> "PILL (120x35dp)"
+            IslandShape.CARD -> "CARD (360x180dp)"
+            else -> "${currentShape.widthDp}x${currentShape.heightDp}dp"
+        }
 
         statusText.text = "Overlay Permission: ${if (hasPermission) "GRANTED" else "DENIED"}\n" +
-            "Overlay Attached: ${if (isAttached) "YES" else "NO"}"
+            "Overlay Attached: ${if (isAttached) "YES" else "NO"}\n" +
+            "Current Shape: $shapeName"
 
         requestPermissionButton.isEnabled = !hasPermission
         attachButton.isEnabled = hasPermission && !isAttached
         detachButton.isEnabled = isAttached
+
+        punchHoleButton.isEnabled = isAttached
+        pillButton.isEnabled = isAttached
+        cardButton.isEnabled = isAttached
     }
 }

@@ -15,6 +15,9 @@ object IslandWindowManager {
     val isAttached: Boolean
         get() = islandView != null && (islandView?.isAttachedToWindow == true)
 
+    val currentShape: IslandShape
+        get() = islandView?.currentShape ?: IslandShape.PUNCH_HOLE
+
     fun attach(context: Context): Boolean {
         val appContext = context.applicationContext
         if (!Settings.canDrawOverlays(appContext)) {
@@ -29,7 +32,7 @@ object IslandWindowManager {
 
         val sizePx = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
-            10f,
+            IslandShape.PUNCH_HOLE.widthDp,
             appContext.resources.displayMetrics
         ).toInt()
 
@@ -51,6 +54,20 @@ object IslandWindowManager {
         wm.addView(view, params)
         islandView = view
         return true
+    }
+
+    fun morphTo(shape: IslandShape) {
+        val view = islandView ?: return
+        val wm = windowManager ?: return
+
+        view.morphTo(shape)
+
+        val params = view.layoutParams as? WindowManager.LayoutParams ?: return
+        params.width = view.currentWidthPx.toInt()
+        params.height = view.currentHeightPx.toInt()
+        try {
+            wm.updateViewLayout(view, params)
+        } catch (_: Exception) {}
     }
 
     fun detach() {
