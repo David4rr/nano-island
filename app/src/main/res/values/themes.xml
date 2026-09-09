@@ -1,0 +1,3 @@
+<resources>
+    <style name="Theme.NanoIsland" parent="Theme.AppCompat.DayNight.NoActionBar" />
+</resources>
