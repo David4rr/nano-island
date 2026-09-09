@@ -2,6 +2,7 @@ package dev.nanoIsland
 
 import android.content.Context
 import android.graphics.PixelFormat
+import android.os.Build
 import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
@@ -11,16 +12,24 @@ object IslandWindowManager {
 
     private var islandView: IslandView? = null
     private var windowManager: WindowManager? = null
-
     val isAttached: Boolean
-        get() = islandView != null && (islandView?.isAttachedToWindow == true)
+        get() = islandView != null
 
     val currentShape: IslandShape
         get() = islandView?.currentShape ?: IslandShape.PUNCH_HOLE
 
+    private fun getTopOffsetPx(context: Context): Int {
+        return TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            16f,
+            context.resources.displayMetrics
+        ).toInt()
+    }
+
     fun attach(context: Context): Boolean {
         val appContext = context.applicationContext
-        if (!Settings.canDrawOverlays(appContext)) {
+        val canDraw = Settings.canDrawOverlays(appContext)
+        if (!canDraw) {
             return false
         }
         if (islandView != null) {
@@ -29,16 +38,21 @@ object IslandWindowManager {
 
         val wm = appContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return false
         windowManager = wm
-
-        val sizePx = TypedValue.applyDimension(
+        val initialShape = IslandShape.PUNCH_HOLE
+        val widthPx = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
-            IslandShape.PUNCH_HOLE.widthDp,
+            initialShape.widthDp,
+            appContext.resources.displayMetrics
+        ).toInt()
+        val heightPx = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            initialShape.heightDp,
             appContext.resources.displayMetrics
         ).toInt()
 
         val params = WindowManager.LayoutParams(
-            sizePx,
-            sizePx,
+            widthPx,
+            heightPx,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
@@ -47,13 +61,23 @@ object IslandWindowManager {
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             x = 0
-            y = 0
-        }
+            y = getTopOffsetPx(appContext)
 
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
         val view = IslandView(appContext)
-        wm.addView(view, params)
-        islandView = view
-        return true
+        try {
+            wm.addView(view, params)
+            islandView = view
+            return true
+        } catch (e: Exception) {
+            android.util.Log.e("NanoIsland", "Failed to addView to WindowManager", e)
+            return false
+        }
     }
 
     fun morphTo(shape: IslandShape) {
@@ -65,6 +89,7 @@ object IslandWindowManager {
         val params = view.layoutParams as? WindowManager.LayoutParams ?: return
         params.width = view.currentWidthPx.toInt()
         params.height = view.currentHeightPx.toInt()
+        params.y = getTopOffsetPx(view.context)
         try {
             wm.updateViewLayout(view, params)
         } catch (_: Exception) {}

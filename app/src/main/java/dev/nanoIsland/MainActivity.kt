@@ -81,7 +81,7 @@ class MainActivity : AppCompatActivity() {
         rootLayout.addView(shapesHeader)
 
         punchHoleButton = Button(this).apply {
-            text = "Punch Hole (10x10)"
+            text = "Punch Hole (34x34)"
             setOnClickListener {
                 IslandWindowManager.morphTo(IslandShape.PUNCH_HOLE)
                 updateUi()
@@ -90,7 +90,7 @@ class MainActivity : AppCompatActivity() {
         rootLayout.addView(punchHoleButton)
 
         pillButton = Button(this).apply {
-            text = "Pill (120x35)"
+            text = "Pill (126x36)"
             setOnClickListener {
                 IslandWindowManager.morphTo(IslandShape.PILL)
                 updateUi()
@@ -99,7 +99,7 @@ class MainActivity : AppCompatActivity() {
         rootLayout.addView(pillButton)
 
         cardButton = Button(this).apply {
-            text = "Card (360x180)"
+            text = "Card (360x170)"
             setOnClickListener {
                 IslandWindowManager.morphTo(IslandShape.CARD)
                 updateUi()
@@ -126,9 +126,9 @@ class MainActivity : AppCompatActivity() {
         val currentShape = IslandWindowManager.currentShape
 
         val shapeName = when (currentShape) {
-            IslandShape.PUNCH_HOLE -> "PUNCH_HOLE (10x10dp)"
-            IslandShape.PILL -> "PILL (120x35dp)"
-            IslandShape.CARD -> "CARD (360x180dp)"
+            IslandShape.PUNCH_HOLE -> "PUNCH_HOLE (34x34dp, r17)"
+            IslandShape.PILL -> "PILL (126x36dp, r18)"
+            IslandShape.CARD -> "CARD (360x170dp, r38)"
             else -> "${currentShape.widthDp}x${currentShape.heightDp}dp"
         }
 

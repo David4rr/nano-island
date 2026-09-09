@@ -31,20 +31,23 @@ class IslandView @JvmOverloads constructor(
     var currentHeightPx: Float = dpToPx(IslandShape.PUNCH_HOLE.heightDp)
         private set
 
+    var currentCornerRadiusPx: Float = dpToPx(IslandShape.PUNCH_HOLE.cornerRadiusDp)
+        private set
+
     fun morphTo(shape: IslandShape) {
         currentShape = shape
         currentWidthPx = dpToPx(shape.widthDp)
         currentHeightPx = dpToPx(shape.heightDp)
+        currentCornerRadiusPx = dpToPx(shape.cornerRadiusDp)
         invalidate()
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val radius = minOf(currentWidthPx, currentHeightPx) / 2f
         val left = (width - currentWidthPx) / 2f
         val top = (height - currentHeightPx) / 2f
         rect.set(left, top, left + currentWidthPx, top + currentHeightPx)
-        canvas.drawRoundRect(rect, radius, radius, islandPaint)
+        canvas.drawRoundRect(rect, currentCornerRadiusPx, currentCornerRadiusPx, islandPaint)
     }
 
     private fun dpToPx(dp: Float): Float {
