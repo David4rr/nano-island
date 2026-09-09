@@ -3,6 +3,8 @@ package dev.nanoIsland
 import android.content.Context
 import android.graphics.PixelFormat
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
@@ -13,16 +15,21 @@ object IslandWindowManager {
     private var islandView: IslandView? = null
     private var windowManager: WindowManager? = null
     private var animationController: SpringAnimationController? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var activeNotification: NotificationPayload? = null
+    private var autoDismissRunnable: Runnable? = null
+    private val interceptedKeys = mutableSetOf<String>()
+    var baseShape: IslandShape = IslandShape.PUNCH_HOLE
+
     val isAttached: Boolean
         get() = islandView != null
 
     val currentShape: IslandShape
         get() = islandView?.currentShape ?: IslandShape.PUNCH_HOLE
-
     private fun getTopOffsetPx(context: Context): Int {
         return TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
-            16f,
+            18f,
             context.resources.displayMetrics
         ).toInt()
     }
@@ -39,28 +46,23 @@ object IslandWindowManager {
 
         val wm = appContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return false
         windowManager = wm
-        val initialShape = IslandShape.PUNCH_HOLE
-        val widthPx = TypedValue.applyDimension(
+        val windowHeightPx = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
-            initialShape.widthDp,
-            appContext.resources.displayMetrics
-        ).toInt()
-        val heightPx = TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_DIP,
-            initialShape.heightDp,
+            220f,
             appContext.resources.displayMetrics
         ).toInt()
 
         val params = WindowManager.LayoutParams(
-            widthPx,
-            heightPx,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            windowHeightPx,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            gravity = Gravity.TOP or Gravity.START
             x = 0
             y = getTopOffsetPx(appContext)
 
@@ -84,36 +86,20 @@ object IslandWindowManager {
 
     fun animateTo(shape: IslandShape, onEnd: (() -> Unit)? = null) {
         val view = islandView ?: return
-        val wm = windowManager ?: return
         val controller = animationController ?: return
 
-        val startWidth = view.currentWidthPx.toInt()
-        val targetWidth = view.dpToPx(shape.widthDp).toInt()
-        val startHeight = view.currentHeightPx.toInt()
-        val targetHeight = view.dpToPx(shape.heightDp).toInt()
-
-        val maxW = maxOf(startWidth, targetWidth)
-        val maxH = maxOf(startHeight, targetHeight)
-
-        val params = view.layoutParams as? WindowManager.LayoutParams
-        if (params != null && (params.width < maxW || params.height < maxH)) {
-            params.width = maxW
-            params.height = maxH
-            try {
-                wm.updateViewLayout(view, params)
-            } catch (_: Exception) {}
+        if (shape != IslandShape.CARD) {
+            baseShape = shape
         }
 
+        if (shape != IslandShape.PUNCH_HOLE) {
+            setWindowTouchable(true)
+        }
         controller.animateTo(
             targetShape = shape,
             onEnd = {
-                val endParams = view.layoutParams as? WindowManager.LayoutParams
-                if (endParams != null) {
-                    endParams.width = targetWidth
-                    endParams.height = targetHeight
-                    try {
-                        wm.updateViewLayout(view, endParams)
-                    } catch (_: Exception) {}
+                if (shape == IslandShape.PUNCH_HOLE) {
+                    setWindowTouchable(false)
                 }
                 onEnd?.invoke()
             }
@@ -122,22 +108,88 @@ object IslandWindowManager {
 
     fun morphTo(shape: IslandShape) {
         val view = islandView ?: return
-        val wm = windowManager ?: return
+        if (shape != IslandShape.CARD) {
+            baseShape = shape
+        }
         animationController?.cancel()
-
         view.morphTo(shape)
+        setWindowTouchable(shape != IslandShape.PUNCH_HOLE)
+    }
 
+    private fun setWindowTouchable(touchable: Boolean) {
+        val view = islandView ?: return
+        val wm = windowManager ?: return
         val params = view.layoutParams as? WindowManager.LayoutParams ?: return
-        params.width = view.currentWidthPx.toInt()
-        params.height = view.currentHeightPx.toInt()
-        params.y = getTopOffsetPx(view.context)
-        try {
-            wm.updateViewLayout(view, params)
-        } catch (_: Exception) {}
+        val isNotTouchable = (params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE) != 0
+        val shouldBeNotTouchable = !touchable
+        if (isNotTouchable != shouldBeNotTouchable) {
+            if (shouldBeNotTouchable) {
+                params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            } else {
+                params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+            }
+            try {
+                wm.updateViewLayout(view, params)
+            } catch (_: Exception) {}
+        }
+    }
+
+
+    fun onNotificationReceived(payload: NotificationPayload) {
+        mainHandler.post {
+            val view = islandView ?: return@post
+            autoDismissRunnable?.let {
+                mainHandler.removeCallbacks(it)
+                autoDismissRunnable = null
+            }
+            interceptedKeys.add(payload.key)
+            activeNotification = payload
+            view.setNotification(payload)
+            val scheduleDismiss = {
+                val dismiss = Runnable {
+                    dismissActiveNotification()
+                }
+                autoDismissRunnable = dismiss
+                mainHandler.postDelayed(dismiss, 3500L)
+            }
+
+            if (view.targetShape == IslandShape.CARD || view.currentShape == IslandShape.CARD) {
+                scheduleDismiss()
+            } else {
+                animateTo(IslandShape.CARD) {
+                    scheduleDismiss()
+                }
+            }
+        }
+    }
+
+    fun dismissActiveNotification() {
+        mainHandler.post {
+            autoDismissRunnable?.let {
+                mainHandler.removeCallbacks(it)
+                autoDismissRunnable = null
+            }
+            if (activeNotification == null && interceptedKeys.isEmpty()) return@post
+            val target = baseShape
+            animateTo(target) {
+                val keysToDismiss = interceptedKeys.toList()
+                interceptedKeys.clear()
+                for (key in keysToDismiss) {
+                    NanoNotificationListener.dismissNotification(key)
+                }
+                activeNotification = null
+                islandView?.setNotification(null)
+            }
+        }
     }
 
     fun detach() {
         val view = islandView ?: return
+        autoDismissRunnable?.let {
+            mainHandler.removeCallbacks(it)
+            autoDismissRunnable = null
+        }
+        activeNotification = null
         animationController?.cancel()
         animationController = null
         val wm = windowManager

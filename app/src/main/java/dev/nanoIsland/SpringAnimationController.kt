@@ -1,49 +1,69 @@
 package dev.nanoIsland
 
+import android.util.Log
 import androidx.dynamicanimation.animation.FloatValueHolder
 import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
 
 class SpringAnimationController(private val islandView: IslandView) {
 
-    private val widthHolder = FloatValueHolder(islandView.currentWidthPx)
-    private val heightHolder = FloatValueHolder(islandView.currentHeightPx)
-    private val radiusHolder = FloatValueHolder(islandView.currentCornerRadiusPx)
+    private val progressHolder = FloatValueHolder(0f)
+    private val morphAnim = SpringAnimation(progressHolder)
 
-    private val widthAnim = SpringAnimation(widthHolder)
-    private val heightAnim = SpringAnimation(heightHolder)
-    private val radiusAnim = SpringAnimation(radiusHolder)
+    private var startWidthPx = 0f
+    private var startHeightPx = 0f
+    private var startRadiusPx = 0f
+    private var targetWidthPx = 0f
+    private var targetHeightPx = 0f
+    private var targetRadiusPx = 0f
 
     private var isAnimating = false
+    private var isExpanding = false
     private var currentEndCallback: (() -> Unit)? = null
 
     init {
-        widthAnim.addUpdateListener { _, value, _ ->
-            islandView.currentWidthPx = value
-            islandView.invalidate()
-        }
-        heightAnim.addUpdateListener { _, value, _ ->
-            islandView.currentHeightPx = value
-            islandView.invalidate()
-        }
-        radiusAnim.addUpdateListener { _, value, _ ->
-            islandView.currentCornerRadiusPx = value
-            islandView.invalidate()
-        }
-
-        val onAnimationFinished = {
-            if (!widthAnim.isRunning && !heightAnim.isRunning && !radiusAnim.isRunning) {
-                isAnimating = false
-                islandView.currentShape = islandView.targetShape
-                val callback = currentEndCallback
-                currentEndCallback = null
-                callback?.invoke()
+        morphAnim.addUpdateListener { _, p, _ ->
+            val clampedP = p.coerceIn(0f, 1f)
+            // Expressive liquid mercury dynamics:
+            // Width stretches out eagerly (squish & stretch), height blossoms open gracefully
+            val pw = if (isExpanding) {
+                1f - Math.pow((1f - clampedP).toDouble(), 1.45).toFloat()
+            } else {
+                1f - Math.pow((1f - clampedP).toDouble(), 1.15).toFloat()
             }
+            val ph = if (isExpanding) {
+                Math.pow(clampedP.toDouble(), 1.25).toFloat()
+            } else {
+                Math.pow(clampedP.toDouble(), 1.10).toFloat()
+            }
+
+            val currentW = startWidthPx + (targetWidthPx - startWidthPx) * pw
+            val currentH = startHeightPx + (targetHeightPx - startHeightPx) * ph
+
+            // Dynamic curvature: maintain unbroken capsule ends (r = h/2) during small heights,
+            // transitioning seamlessly to card squircle radius as height expands
+            val maxCapsuleRadius = currentH / 2f
+            val rawRadius = startRadiusPx + (targetRadiusPx - startRadiusPx) * clampedP
+            val currentR = minOf(maxCapsuleRadius, rawRadius)
+
+            islandView.currentWidthPx = currentW
+            islandView.currentHeightPx = currentH
+            islandView.currentCornerRadiusPx = currentR
+            islandView.invalidate()
         }
 
-        widthAnim.addEndListener { _, _, _, _ -> onAnimationFinished() }
-        heightAnim.addEndListener { _, _, _, _ -> onAnimationFinished() }
-        radiusAnim.addEndListener { _, _, _, _ -> onAnimationFinished() }
+        morphAnim.addEndListener { _, _, _, _ ->
+            isAnimating = false
+            islandView.currentWidthPx = targetWidthPx
+            islandView.currentHeightPx = targetHeightPx
+            islandView.currentCornerRadiusPx = targetRadiusPx
+            islandView.currentShape = islandView.targetShape
+            islandView.invalidate()
+
+            val callback = currentEndCallback
+            currentEndCallback = null
+            callback?.invoke()
+        }
     }
 
     fun animateTo(
@@ -54,48 +74,37 @@ class SpringAnimationController(private val islandView: IslandView) {
         islandView.targetShape = targetShape
         currentEndCallback = onEnd
 
-        val targetWidthPx = islandView.dpToPx(targetShape.widthDp)
-        val targetHeightPx = islandView.dpToPx(targetShape.heightDp)
-        val targetRadiusPx = islandView.dpToPx(targetShape.cornerRadiusDp)
+        startWidthPx = islandView.currentWidthPx
+        startHeightPx = islandView.currentHeightPx
+        startRadiusPx = islandView.currentCornerRadiusPx
 
-        val isExpanding = targetWidthPx > islandView.currentWidthPx || targetHeightPx > islandView.currentHeightPx
+        targetWidthPx = islandView.dpToPx(targetShape.widthDp)
+        targetHeightPx = islandView.dpToPx(targetShape.heightDp)
+        targetRadiusPx = islandView.dpToPx(targetShape.cornerRadiusDp)
 
-        val stiffness = if (isExpanding) 200f else 1500f
-        val damping = if (isExpanding) 0.75f else 1.0f
+        isExpanding = targetWidthPx > startWidthPx || targetHeightPx > startHeightPx
 
-        widthAnim.cancel()
-        heightAnim.cancel()
-        radiusAnim.cancel()
+        // Expressive liquid physics:
+        // Expand: stiffness 220f, damping 0.92f -> luxurious ~360ms fluid bloom with silky cushion settle
+        // Collapse: stiffness 850f, damping 1.0f -> snappy, decisive ~150ms retract without bounce
+        val stiffness = if (isExpanding) 220f else 850f
+        val damping = if (isExpanding) 0.92f else SpringForce.DAMPING_RATIO_NO_BOUNCY
 
-        widthHolder.value = islandView.currentWidthPx
-        heightHolder.value = islandView.currentHeightPx
-        radiusHolder.value = islandView.currentCornerRadiusPx
+        morphAnim.cancel()
+        progressHolder.value = 0f
 
-        widthAnim.spring = SpringForce(targetWidthPx).apply {
-            this.stiffness = stiffness
-            this.dampingRatio = damping
-        }
-        heightAnim.spring = SpringForce(targetHeightPx).apply {
-            this.stiffness = stiffness
-            this.dampingRatio = damping
-        }
-        radiusAnim.spring = SpringForce(targetRadiusPx).apply {
+        morphAnim.spring = SpringForce(1f).apply {
             this.stiffness = stiffness
             this.dampingRatio = damping
         }
 
         onStart?.invoke()
         isAnimating = true
-
-        widthAnim.start()
-        heightAnim.start()
-        radiusAnim.start()
+        morphAnim.start()
     }
 
     fun cancel() {
-        widthAnim.cancel()
-        heightAnim.cancel()
-        radiusAnim.cancel()
+        morphAnim.cancel()
         isAnimating = false
     }
 }
