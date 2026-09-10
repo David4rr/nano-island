@@ -188,4 +188,23 @@ class IslandView @JvmOverloads constructor(
             resources.displayMetrics
         )
     }
+
+    /**
+     * Test whether touch coordinates (relative to IslandView) hit the drawn island bounds,
+     * including comfortable touch slop padding.
+     */
+    fun isTouchInsideIsland(touchX: Float, touchY: Float): Boolean {
+        val viewWidth = if (width > 0) width.toFloat() else resources.displayMetrics.widthPixels.toFloat()
+        val left = (viewWidth - currentWidthPx) / 2f
+        val top = 0f
+        val slopH = dpToPx(16f)
+        val slopV = dpToPx(16f)
+        val hitRect = RectF(
+            left - slopH,
+            top,
+            left + currentWidthPx + slopH,
+            top + currentHeightPx + slopV
+        )
+        return hitRect.contains(touchX, touchY)
+    }
 }

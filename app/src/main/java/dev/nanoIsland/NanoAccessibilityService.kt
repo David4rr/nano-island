@@ -134,9 +134,9 @@ class NanoAccessibilityService : AccessibilityService() {
          * @param onFailure Invoked with error code on failure.
          */
         fun takeScreenshot(
-            executor: Executor? = null,
             onSuccess: ((Bitmap?, HardwareBuffer?) -> Unit)? = null,
-            onFailure: ((Int) -> Unit)? = null
+            onFailure: ((Int) -> Unit)? = null,
+            executor: Executor? = null
         ): Boolean {
             val service = instance ?: run {
                 Log.w(TAG, "takeScreenshot failed: NanoAccessibilityService not connected")

@@ -20,6 +20,8 @@ object IslandWindowManager {
     private var autoDismissRunnable: Runnable? = null
     private val interceptedKeys = mutableSetOf<String>()
     var baseShape: IslandShape = IslandShape.PUNCH_HOLE
+    var touchListener: IslandTouchListener? = null
+        private set
 
     val isAttached: Boolean
         get() = islandView != null
@@ -74,10 +76,25 @@ object IslandWindowManager {
         }
         val view = IslandView(appContext)
         val controller = SpringAnimationController(view)
+        val listener = IslandTouchListener(
+            islandView = view,
+            lockFn = {
+                NanoAccessibilityService.lockScreen()
+            },
+            screenshotFn = {
+                NanoAccessibilityService.takeScreenshot(
+                    onSuccess = { _, buffer ->
+                        buffer?.close()
+                    }
+                )
+            }
+        )
+        view.setOnTouchListener(listener)
         try {
             wm.addView(view, params)
             islandView = view
             animationController = controller
+            touchListener = listener
             return true
         } catch (e: Exception) {
             return false
@@ -192,6 +209,9 @@ object IslandWindowManager {
         activeNotification = null
         animationController?.cancel()
         animationController = null
+        view.setOnTouchListener(null)
+        touchListener?.resetTransform()
+        touchListener = null
         val wm = windowManager
         if (view.isAttachedToWindow && wm != null) {
             try {

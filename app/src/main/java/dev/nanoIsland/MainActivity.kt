@@ -318,10 +318,13 @@ class MainActivity : AppCompatActivity() {
             else -> "DENIED"
         }
 
+        val touchStatus = if (IslandWindowManager.touchListener != null) "READY (PULL/SWIPE)" else "NOT ATTACHED"
+
         statusText.text = "Overlay Permission: ${if (hasPermission) "GRANTED" else "DENIED"}\n" +
             "Notification Access: ${if (hasNotifAccess) "GRANTED" else "DENIED"}\n" +
             "Accessibility Service: $a11yStatus\n" +
             "Overlay Attached: ${if (isAttached) "YES" else "NO"}\n" +
+            "Touch Gestures: $touchStatus\n" +
             "Current Shape: $shapeName"
 
         requestPermissionButton.isEnabled = !hasPermission
