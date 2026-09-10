@@ -144,7 +144,17 @@ class NanoAccessibilityService : AccessibilityService() {
                 return false
             }
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Log.d(TAG, "Executing performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)")
+            val globalSuccess = service.performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
+            Log.d(TAG, "performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT) result: $globalSuccess")
+
+            if (!globalSuccess) {
+                Log.w(TAG, "performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT) failed")
+                onFailure?.invoke(ERROR_GLOBAL_ACTION_FAILED)
+                return false
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && onSuccess != null) {
                 val mainExec = executor ?: ContextCompat.getMainExecutor(service)
                 service.takeScreenshot(
                     Display.DEFAULT_DISPLAY,
@@ -159,27 +169,21 @@ class NanoAccessibilityService : AccessibilityService() {
                                 Log.e(TAG, "Failed to wrap hardware buffer into Bitmap", e)
                                 null
                             }
-                            Log.d(TAG, "Screenshot captured successfully: ${bitmap?.width}x${bitmap?.height}")
-                            onSuccess?.invoke(bitmap, buffer)
+                            Log.d(TAG, "Screenshot buffer captured: ${bitmap?.width}x${bitmap?.height}")
+                            onSuccess.invoke(bitmap, buffer)
                         }
 
                         override fun onFailure(errorCode: Int) {
-                            Log.e(TAG, "takeScreenshot failed with error code: $errorCode")
-                            onFailure?.invoke(errorCode)
+                            Log.w(TAG, "Hardware buffer capture failed with code: $errorCode")
+                            onSuccess.invoke(null, null)
                         }
                     }
                 )
-                return true
             } else {
-                Log.d(TAG, "API < 30: performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)")
-                val success = service.performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
-                if (success) {
-                    onSuccess?.invoke(null, null)
-                } else {
-                    onFailure?.invoke(ERROR_GLOBAL_ACTION_FAILED)
-                }
-                return success
+                onSuccess?.invoke(null, null)
             }
+
+            return true
         }
 
         /**

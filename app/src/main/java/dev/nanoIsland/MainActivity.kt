@@ -29,10 +29,12 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var punchHoleButton: Button
     private lateinit var pillButton: Button
+    private lateinit var squareButton: Button
     private lateinit var cardButton: Button
     private lateinit var testNotifButton: Button
     private lateinit var postHeadsUpButton: Button
     private lateinit var testLockScreenButton: Button
+    private lateinit var testPowerOffButton: Button
     private lateinit var testScreenshotButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -139,6 +141,17 @@ class MainActivity : AppCompatActivity() {
             }
         }
         rootLayout.addView(pillButton)
+
+        squareButton = Button(this).apply {
+            text = "Rounded Square (52x52)"
+            setOnClickListener {
+                IslandWindowManager.animateTo(IslandShape.ROUNDED_SQUARE) {
+                    updateUi()
+                }
+                updateUi()
+            }
+        }
+        rootLayout.addView(squareButton)
 
         cardButton = Button(this).apply {
             text = "Card (360x170)"
@@ -259,6 +272,15 @@ class MainActivity : AppCompatActivity() {
         }
         rootLayout.addView(testLockScreenButton)
 
+        testPowerOffButton = Button(this).apply {
+            text = "Test Power-Off Morph & Lock"
+            setOnClickListener {
+                IslandWindowManager.powerOffLock()
+                updateUi()
+            }
+        }
+        rootLayout.addView(testPowerOffButton)
+
         testScreenshotButton = Button(this).apply {
             text = "Test Screenshot (Phase 5)"
             setOnClickListener {
@@ -289,6 +311,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (Settings.canDrawOverlays(this) && !IslandWindowManager.isAttached) {
+            IslandWindowManager.attach(this)
+            IslandWindowManager.morphTo(IslandShape.PILL)
+        }
         updateUi()
     }
 
@@ -308,6 +334,7 @@ class MainActivity : AppCompatActivity() {
         val shapeName = when (currentShape) {
             IslandShape.PUNCH_HOLE -> "PUNCH_HOLE (34x34dp, r17)"
             IslandShape.PILL -> "PILL (126x36dp, r18)"
+            IslandShape.ROUNDED_SQUARE -> "ROUNDED_SQUARE (52x52dp, r16)"
             IslandShape.CARD -> "CARD (360x170dp, r32)"
             else -> "${currentShape.widthDp}x${currentShape.heightDp}dp"
         }
@@ -335,10 +362,12 @@ class MainActivity : AppCompatActivity() {
 
         punchHoleButton.isEnabled = isAttached
         pillButton.isEnabled = isAttached
+        squareButton.isEnabled = isAttached
         cardButton.isEnabled = isAttached
         postHeadsUpButton.isEnabled = isAttached
         testNotifButton.isEnabled = isAttached
         testLockScreenButton.isEnabled = isA11yConnected
+        testPowerOffButton.isEnabled = isAttached && isA11yConnected
         testScreenshotButton.isEnabled = isA11yConnected
     }
 }

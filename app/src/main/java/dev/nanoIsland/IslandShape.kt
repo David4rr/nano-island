@@ -11,6 +11,10 @@ data class IslandShape(
 
         // iOS-style compact idle pill (capsule: radius = height / 2)
         val PILL = IslandShape(widthDp = 126f, heightDp = 36f, cornerRadiusDp = 18f)
+
+        // Fluid power-off lock squircle
+        val ROUNDED_SQUARE = IslandShape(widthDp = 52f, heightDp = 52f, cornerRadiusDp = 16f)
+
         // iOS-style expanded card (sleek 32dp corners, not a sausage oval)
         val CARD = IslandShape(widthDp = 360f, heightDp = 170f, cornerRadiusDp = 32f)
     }

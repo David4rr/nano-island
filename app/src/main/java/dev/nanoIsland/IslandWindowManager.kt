@@ -50,7 +50,7 @@ object IslandWindowManager {
         windowManager = wm
         val windowHeightPx = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
-            220f,
+            240f,
             appContext.resources.displayMetrics
         ).toInt()
 
@@ -66,7 +66,7 @@ object IslandWindowManager {
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             x = 0
-            y = getTopOffsetPx(appContext)
+            y = 0
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
@@ -79,14 +79,10 @@ object IslandWindowManager {
         val listener = IslandTouchListener(
             islandView = view,
             lockFn = {
-                NanoAccessibilityService.lockScreen()
+                powerOffLock()
             },
             screenshotFn = {
-                NanoAccessibilityService.takeScreenshot(
-                    onSuccess = { _, buffer ->
-                        buffer?.close()
-                    }
-                )
+                NanoAccessibilityService.takeScreenshot()
             }
         )
         view.setOnTouchListener(listener)
@@ -101,11 +97,31 @@ object IslandWindowManager {
         }
     }
 
+    /**
+     * Morph power-off animation: smoothly transitions Island into a rounded square with lock icon,
+     * dispatches screen lock via AccessibilityService, and resets back to baseShape upon completion.
+     */
+    fun powerOffLock() {
+        mainHandler.post {
+            val view = islandView ?: run {
+                NanoAccessibilityService.lockScreen()
+                return@post
+            }
+            val previousBase = baseShape
+            view.pullDownProgress = 1f
+            NanoAccessibilityService.lockScreen()
+            mainHandler.postDelayed({
+                touchListener?.resetTransform()
+                morphTo(previousBase)
+            }, 350L)
+        }
+    }
+
     fun animateTo(shape: IslandShape, onEnd: (() -> Unit)? = null) {
         val view = islandView ?: return
         val controller = animationController ?: return
 
-        if (shape != IslandShape.CARD) {
+        if (shape != IslandShape.CARD && shape != IslandShape.ROUNDED_SQUARE) {
             baseShape = shape
         }
 
@@ -125,7 +141,7 @@ object IslandWindowManager {
 
     fun morphTo(shape: IslandShape) {
         val view = islandView ?: return
-        if (shape != IslandShape.CARD) {
+        if (shape != IslandShape.CARD && shape != IslandShape.ROUNDED_SQUARE) {
             baseShape = shape
         }
         animationController?.cancel()
